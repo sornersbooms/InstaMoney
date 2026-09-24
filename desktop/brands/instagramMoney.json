@@ -1,0 +1,16 @@
+{
+  "key": "instagramMoney",
+  "productId": "instagram-money",
+  "productName": "instagramMoney",
+  "appId": "com.instagrammoney.desktop",
+  "dataFile": "instagrammoney.json",
+  "csvPrefix": "instagrammoney-leads",
+  "icon": "build/icon-instagramMoney.png",
+  "whatsapp": "573176116145",
+  "tagline": "Activa tu licencia para empezar a capturar prospectos.",
+  "colors": {
+    "primary": "#00f0ff",
+    "secondary": "#a855f7",
+    "accent": "#ff2d95"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "key": "dropprospect",
+  "productId": "dropprospect",
+  "productName": "DropProspect",
+  "appId": "com.dropprospect.desktop",
+  "dataFile": "dropprospect.json",
+  "csvPrefix": "dropprospect-leads",
+  "icon": "build/icon-dropprospect.png",
+  "whatsapp": "573176116145",
+  "tagline": "Activa tu licencia para empezar a capturar prospectos.",
+  "colors": {
+    "primary": "#2dffb0",
+    "secondary": "#00b3ff",
+    "accent": "#7c5cff"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "instagrammoney-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App de escritorio para capturar y trabajar leads de Instagram (multimarca).",
+  "author": "Alcanzia",
+  "main": "electron/main.js",
+  "scripts": {
+    "brand": "node scripts/set-brand.mjs",
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "dist": "node scripts/dist.mjs instagramMoney",
+    "dist:dropprospect": "node scripts/dist.mjs dropprospect",
+    "dist:all": "node scripts/dist.mjs instagramMoney && node scripts/dist.mjs dropprospect"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.5"
+  }
+}
