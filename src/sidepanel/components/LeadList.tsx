@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { LeadCard } from './LeadCard';
 import { Filters, type FilterState } from './Filters';
-import type { Lead, Settings } from '@/lib/types';
-import { deleteLead, incrementContactedToday, saveLeads, updateLead } from '@/lib/storage';
+import { SendQueuePanel } from './SendQueuePanel';
+import type { Lead, Settings, Template } from '@/lib/types';
+import { deleteLead, incrementContactedToday, saveLeads, saveSendQueue, updateLead } from '@/lib/storage';
 import { downloadCsv } from '@/lib/csvExport';
 import { scoreLeadsWithGroq } from '@/lib/groqScoring';
 
@@ -10,13 +11,15 @@ interface Props {
   leads: Lead[];
   setLeads: (leads: Lead[]) => void;
   settings: Settings;
+  templates: Template[];
   onContacted: () => void;
 }
 
-export function LeadList({ leads, setLeads, settings, onContacted }: Props) {
+export function LeadList({ leads, setLeads, settings, templates, onContacted }: Props) {
   const [filters, setFilters] = useState<FilterState>({ search: '', status: 'all', sortByScore: false });
   const [scoring, setScoring] = useState(false);
   const [scoringError, setScoringError] = useState('');
+  const [confirmingWipe, setConfirmingWipe] = useState(false);
 
   const filtered = useMemo(() => {
     let result = leads;
@@ -48,6 +51,18 @@ export function LeadList({ leads, setLeads, settings, onContacted }: Props) {
   async function handleMarkContacted() {
     await incrementContactedToday();
     onContacted();
+  }
+
+  async function handleDeleteAll() {
+    if (!confirmingWipe) {
+      setConfirmingWipe(true);
+      setTimeout(() => setConfirmingWipe(false), 5000);
+      return;
+    }
+    await saveLeads([]);
+    await saveSendQueue(null);
+    setLeads([]);
+    setConfirmingWipe(false);
   }
 
   async function handleAnalyze() {
@@ -91,8 +106,27 @@ export function LeadList({ leads, setLeads, settings, onContacted }: Props) {
         >
           ⬇️ CSV
         </button>
+        <button
+          onClick={handleDeleteAll}
+          disabled={leads.length === 0}
+          title="Eliminar todos los leads guardados"
+          style={{
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: `1px solid ${confirmingWipe ? '#ed4956' : '#ddd'}`,
+            background: confirmingWipe ? '#ed4956' : '#fff',
+            color: confirmingWipe ? '#fff' : '#ed4956',
+            fontSize: 13,
+            fontWeight: confirmingWipe ? 700 : 400,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {confirmingWipe ? `¿Borrar ${leads.length}? Confirma` : '🗑️'}
+        </button>
       </div>
       {scoringError && <div style={{ color: '#ed4956', fontSize: 12, padding: '0 16px 10px' }}>{scoringError}</div>}
+
+      <SendQueuePanel allLeads={leads} candidateLeads={filtered} templates={templates} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 16px' }}>
         {filtered.length === 0 && (

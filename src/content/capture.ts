@@ -1,9 +1,4 @@
-import {
-  extractCommentText,
-  extractProfileFromRow,
-  getCommentRows,
-  getFollowersModalRows,
-} from './selectors';
+import { extractProfileFromRow, getCommentRows, getFollowersModalRows } from './selectors';
 import type { CapturedProfile } from '@/lib/types';
 
 /** Lee únicamente lo que ya está renderizado en pantalla — sin scroll ni paginación automática. */
@@ -20,6 +15,7 @@ export function captureVisibleFollowers(): CapturedProfile[] {
   return profiles;
 }
 
+/** De los comentarios solo guardamos el perfil de quien comentó, no el texto del comentario. */
 export function captureVisibleCommenters(): CapturedProfile[] {
   const rows = getCommentRows();
   const seen = new Set<string>();
@@ -28,9 +24,7 @@ export function captureVisibleCommenters(): CapturedProfile[] {
     const extracted = extractProfileFromRow(row);
     if (!extracted || seen.has(extracted.username)) continue;
     seen.add(extracted.username);
-    const comment = extractCommentText(row, extracted.username);
-    profiles.push({ ...extracted, bio: comment });
-    seen.add(extracted.username);
+    profiles.push({ username: extracted.username, profilePicUrl: extracted.profilePicUrl });
   }
   return profiles;
 }

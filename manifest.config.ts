@@ -3,7 +3,7 @@ import pkg from './package.json';
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'InstaMONEY — Leads Instagram',
+  name: 'DropProspect — Leads Instagram',
   description: 'Captura y organiza leads de Instagram de forma manual-asistida, con scoring por IA y plantillas de mensajes.',
   version: pkg.version,
   icons: {
@@ -26,7 +26,12 @@ export default defineManifest({
     default_path: 'src/sidepanel/index.html',
   },
   permissions: ['storage', 'sidePanel', 'alarms', 'notifications', 'activeTab'],
-  host_permissions: ['https://www.instagram.com/*', 'https://api.groq.com/*'],
+  host_permissions: [
+    'https://www.instagram.com/*',
+    'https://api.groq.com/*',
+    'https://*.cdninstagram.com/*',
+    'https://*.fbcdn.net/*',
+  ],
   content_scripts: [
     {
       matches: ['https://www.instagram.com/*'],

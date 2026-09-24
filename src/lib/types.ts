@@ -44,6 +44,23 @@ export const DEFAULT_SETTINGS: Settings = {
   dailyContactSoftLimit: 15,
 };
 
+/**
+ * Cola de envío guiado: recorre una lista de leads uno por uno con una plantilla elegida.
+ * El envío de cada mensaje lo sigue disparando la persona pulsando "Enviar" en Instagram —
+ * esto solo encadena la navegación entre perfiles y la inserción de la plantilla.
+ */
+export interface SendQueueState {
+  templateId: string;
+  leadIds: string[];
+  currentIndex: number;
+  /**
+   * Se activa al entrar a un lead nuevo de la cola para insertar la plantilla una sola vez
+   * al abrir su chat. Se apaga tras insertarla, para no escribir en conversaciones a las que
+   * la persona navegue por su cuenta después.
+   */
+  autoInsertPending: boolean;
+}
+
 export interface CapturedProfile {
   username: string;
   fullName?: string;

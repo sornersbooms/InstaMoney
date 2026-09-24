@@ -1,10 +1,11 @@
-import { DEFAULT_SETTINGS, type DailyStats, type Lead, type Settings, type Template } from './types';
+import { DEFAULT_SETTINGS, type DailyStats, type Lead, type Settings, type SendQueueState, type Template } from './types';
 
 const KEYS = {
   leads: 'leads',
   settings: 'settings',
   templates: 'templates',
   dailyStats: 'dailyStats',
+  sendQueue: 'sendQueue',
 } as const;
 
 async function get<T>(key: string, fallback: T): Promise<T> {
@@ -90,6 +91,24 @@ export function onLeadsChanged(callback: (leads: Lead[]) => void): () => void {
   const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
     if (area === 'local' && changes[KEYS.leads]) {
       callback((changes[KEYS.leads].newValue as Lead[]) ?? []);
+    }
+  };
+  chrome.storage.onChanged.addListener(listener);
+  return () => chrome.storage.onChanged.removeListener(listener);
+}
+
+export async function getSendQueue(): Promise<SendQueueState | null> {
+  return get<SendQueueState | null>(KEYS.sendQueue, null);
+}
+
+export async function saveSendQueue(queue: SendQueueState | null): Promise<void> {
+  await set(KEYS.sendQueue, queue);
+}
+
+export function onSendQueueChanged(callback: (queue: SendQueueState | null) => void): () => void {
+  const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+    if (area === 'local' && changes[KEYS.sendQueue]) {
+      callback((changes[KEYS.sendQueue].newValue as SendQueueState) ?? null);
     }
   };
   chrome.storage.onChanged.addListener(listener);

@@ -27,6 +27,7 @@ const STATUS_COLORS: Record<LeadStatus, string> = {
 export function LeadCard({ lead, onUpdate, onDelete, onMarkContacted }: Props) {
   const [notes, setNotes] = useState(lead.notes);
   const [tagInput, setTagInput] = useState('');
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   function addTag() {
     if (!tagInput.trim()) return;
@@ -44,10 +45,30 @@ export function LeadCard({ lead, onUpdate, onDelete, onMarkContacted }: Props) {
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        {lead.profilePicUrl ? (
-          <img src={lead.profilePicUrl} alt={lead.username} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+        {lead.profilePicUrl && !avatarFailed ? (
+          <img
+            src={lead.profilePicUrl}
+            alt={lead.username}
+            onError={() => setAvatarFailed(true)}
+            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+          />
         ) : (
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#eee' }} />
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: '#dbdbdb',
+              color: '#666',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
+            {lead.username.charAt(0).toUpperCase()}
+          </div>
         )}
         <div style={{ flex: 1 }}>
           <a href={`https://www.instagram.com/${lead.username}/`} target="_blank" rel="noreferrer" style={{ fontWeight: 600, fontSize: 14, color: '#262626', textDecoration: 'none' }}>

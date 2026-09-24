@@ -1,4 +1,4 @@
-# InstaMONEY — Captura y organización de leads de Instagram
+# DropProspect — Captura y organización de leads de Instagram
 
 Extensión de Chrome (Manifest V3, React + TypeScript + Vite) para capturar leads de Instagram de forma
 **manual-asistida**: tú navegas Instagram normalmente, la extensión lee lo que ya está visible en pantalla

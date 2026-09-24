@@ -31,7 +31,7 @@ export function leadsToCsv(leads: Lead[]): string {
   return [header, ...rows].join('\n');
 }
 
-export function downloadCsv(leads: Lead[], filename = `instamoney-leads-${Date.now()}.csv`): void {
+export function downloadCsv(leads: Lead[], filename = `dropprospect-leads-${Date.now()}.csv`): void {
   const csv = leadsToCsv(leads);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

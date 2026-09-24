@@ -58,7 +58,7 @@ export function App() {
       {tab === 'leads' && (
         <>
           <StatsBar stats={stats} settings={settings} leadCount={leads.length} />
-          <LeadList leads={leads} setLeads={setLeads} settings={settings} onContacted={refreshStats} />
+          <LeadList leads={leads} setLeads={setLeads} settings={settings} templates={templates} onContacted={refreshStats} />
         </>
       )}
       {tab === 'templates' && <Templates templates={templates} setTemplates={setTemplates} />}

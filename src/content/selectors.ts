@@ -152,12 +152,6 @@ export function getCommentRows(): HTMLElement[] {
   return collectProfileRows(root);
 }
 
-export function extractCommentText(row: HTMLElement, username: string): string | undefined {
-  const spans = Array.from(row.querySelectorAll<HTMLElement>('span')).filter((el) => el.children.length === 0);
-  const text = spans.map((s) => s.textContent?.trim() ?? '').find((t) => t.length > 0 && t !== username);
-  return text;
-}
-
 export function isPostPage(): boolean {
   return /\/p\/[^/]+\/?/.test(location.pathname) || /\/reel\/[^/]+\/?/.test(location.pathname);
 }
