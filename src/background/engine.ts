@@ -425,14 +425,6 @@ function normalize(text: string) {
   return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-function pkGreater(a: string, b: string | undefined): boolean {
-  if (!b) return true;
-  try {
-    return BigInt(a) > BigInt(b);
-  } catch {
-    return a > b;
-  }
-}
 
 async function monitorNewFollowers(me: string) {
   const autos = await getAutomations();
@@ -476,27 +468,37 @@ async function monitorKeywordComments(me: string) {
   const rules = autos.keywordRules.filter((r) => r.enabled && r.keyword.trim());
   if (rules.length === 0) return;
 
-  const specific = new Set(rules.flatMap((r) => splitList(r.posts).map((p) => ig.shortcodeFromInput(p))).filter(Boolean));
-  const feed = await ig.getOwnRecentPosts(autos.keywordPostsToWatch);
+  // Publicaciones a vigilar: las indicadas en las reglas + (si alguna regla no indica) las recientes.
   const posts = new Map<string, string>(); // mediaId → shortcode
-  for (const p of feed) posts.set(p.id, p.shortcode);
-  for (const code of specific) posts.set(ig.mediaIdFromShortcode(code as string), code as string);
+  for (const r of rules) for (const p of splitList(r.posts)) {
+    const code = ig.shortcodeFromInput(p);
+    if (code) posts.set(ig.mediaIdFromShortcode(code), code);
+  }
+  if (rules.some((r) => splitList(r.posts).length === 0)) {
+    try {
+      for (const p of await ig.getOwnRecentPosts(autos.keywordPostsToWatch)) posts.set(p.id, p.shortcode);
+    } catch (err) {
+      if (err instanceof IgBlockError) throw err;
+      // Sin las recientes se siguen revisando las publicaciones indicadas.
+      await log('warn', `Palabra clave: no se pudieron leer tus publicaciones recientes (${err instanceof Error ? err.message : err}).`, 'system');
+    }
+  }
 
+  // Ventana de tiempo: comentarios hechos desde que se creó la regla (o de las últimas 48 h).
+  const floor = Date.now() - 48 * 3_600_000;
+  let matched = 0;
   for (const [mediaId, shortcode] of posts) {
-    const engine = await getEngineState();
-    const lastPk = engine.lastCommentPk[mediaId];
     const { comments } = await ig.getComments(mediaId, null);
-    if (comments.length === 0) continue;
-    const maxPk = comments.reduce((m, c) => (pkGreater(c.pk, m) ? c.pk : m), lastPk ?? '0');
-    // Primera vez que vemos la publicación: solo marcamos el punto de partida (no respondemos lo antiguo).
-    const fresh = lastPk === undefined ? [] : comments.filter((c) => pkGreater(c.pk, lastPk) && c.userId !== me);
+    const engine = await getEngineState();
     const items: WorkItem[] = [];
     const handled: string[] = [];
-    for (const cm of fresh) {
+    for (const cm of comments) {
+      if (!cm.userId || cm.userId === me || cm.createdAt < floor) continue;
       const text = normalize(cm.text);
       for (const rule of rules) {
-        const ruleScope = splitList(rule.posts).map((p) => ig.shortcodeFromInput(p));
-        if (ruleScope.length && !ruleScope.includes(shortcode)) continue;
+        const scope = splitList(rule.posts).map((p) => ig.shortcodeFromInput(p));
+        if (scope.length && !scope.includes(shortcode)) continue;
+        if (rule.createdAt && cm.createdAt < rule.createdAt - 60_000) continue;
         if (!text.includes(normalize(rule.keyword.trim()))) continue;
         const key = `${rule.id}:${cm.userId}`;
         if (engine.keywordHandled.includes(key) || handled.includes(key)) continue;
@@ -507,19 +509,22 @@ async function monitorKeywordComments(me: string) {
           if (!l.stage || l.stage === 'frio') l.stage = 'tibio';
         });
         const base = { leadId: lead.id, username: lead.username, userId: cm.userId, origin: 'keyword' as const };
-        if (rule.publicReply?.trim())
-          items.push({ ...base, id: uid('w'), action: 'comment', mediaId, text: `@${cm.username} ${rule.publicReply}`, replyToCommentId: cm.pk });
+        // El DM primero (es lo importante); la respuesta pública después.
         items.push({ ...base, id: uid('w'), action: 'dm', text: rule.dmText });
+        if (rule.publicReply?.trim()) items.push({ ...base, id: uid('w'), action: 'comment', mediaId, text: `@${cm.username} ${rule.publicReply}` });
+        await log('info', `Comentó «${rule.keyword}»: DM en cola.`, 'system', cm.username);
       }
     }
-    await mutateEngine((e) => {
-      e.lastCommentPk[mediaId] = maxPk;
-      e.keywordHandled = [...handled, ...e.keywordHandled].slice(0, 5000);
-      e.systemWork.push(...items);
-    });
-    if (items.length) await log('info', `Palabra clave detectada en ${handled.length} comentario(s): DM en cola.`, 'system');
+    if (items.length || handled.length) {
+      matched += handled.length;
+      await mutateEngine((e) => {
+        e.keywordHandled = [...handled, ...e.keywordHandled].slice(0, 5000);
+        e.systemWork.push(...items);
+      });
+    }
     await sleep(randomBetween(1500, 3500));
   }
+  if (matched === 0) await log('info', `Palabra clave: revisadas ${posts.size} publicación(es), sin comentarios nuevos que coincidan.`, 'system');
 }
 
 async function syncInboxAndFollowUps(_me: string) {

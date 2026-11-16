@@ -92,7 +92,7 @@ export function AutomationsPanel() {
         {a.keywordRules.map((r) => (
           <div key={r.id} className="card flat tight" style={{ background: 'var(--surface-2)', border: 'none' }}>
             <div className="row">
-              <Switch checked={r.enabled} onChange={(v) => setRule(r.id, { enabled: v })} label="Regla activa" />
+              <Switch checked={r.enabled} onChange={(v) => setRule(r.id, v ? { enabled: true, createdAt: r.createdAt ?? Date.now() } : { enabled: false })} label="Regla activa" />
               <input className="input" style={{ fontWeight: 700, textTransform: 'uppercase' }} value={r.keyword} onChange={(e) => setRule(r.id, { keyword: e.target.value })} placeholder="PALABRA" />
               <ConfirmButton size="sm" onConfirm={() => update({ ...a, keywordRules: a.keywordRules.filter((x) => x.id !== r.id) })} confirmLabel="¿Quitar?" />
             </div>
@@ -107,7 +107,7 @@ export function AutomationsPanel() {
             </Field>
           </div>
         ))}
-        <Button variant="soft" icon="plus" block onClick={() => update({ ...a, keywordRules: [...a.keywordRules, { id: uid('k'), keyword: '', enabled: true, dmText: '', publicReply: '', posts: '' }] })}>
+        <Button variant="soft" icon="plus" block onClick={() => update({ ...a, keywordRules: [...a.keywordRules, { id: uid('k'), keyword: '', enabled: true, dmText: '', publicReply: '', posts: '', createdAt: Date.now() }] })}>
           Añadir regla
         </Button>
         <Field label="Publicaciones recientes a vigilar">

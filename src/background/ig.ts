@@ -226,7 +226,7 @@ export interface IgComment {
 }
 
 export async function getComments(mediaId: string, cursor?: string | null) {
-  const query: Record<string, string> = { can_support_threading: 'true', permalink_enabled: 'false' };
+  const query: Record<string, string> = { can_support_threading: 'true', permalink_enabled: 'false', sort_order: 'most_recent' };
   if (cursor) query.min_id = cursor;
   const data = await call('GET', `/api/v1/media/${mediaId}/comments/`, query);
   const comments: IgComment[] = (data.comments ?? []).map((c: any) => ({

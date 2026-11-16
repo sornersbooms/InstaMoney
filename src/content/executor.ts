@@ -501,6 +501,14 @@ function sessionLost(): boolean {
   return [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].some((d) => /Continúa como|Continue as/i.test(d.innerText));
 }
 
+/** Tu usuario: el enlace de la foto de perfil de la barra lateral ("Foto del perfil de …" → /usuario/). */
+function ownUsername(): string | undefined {
+  const img = [...document.querySelectorAll<HTMLImageElement>('a[href] img[alt]')].find((i) => /foto del perfil de|profile picture/i.test(i.alt));
+  const href = img?.closest('a')?.getAttribute('href') ?? '';
+  const fromLink = /^\/([A-Za-z0-9_.]+)\/$/.exec(href)?.[1];
+  return fromLink ?? /"username":"([A-Za-z0-9_.]+)"/.exec(document.documentElement.innerHTML)?.[1];
+}
+
 async function handle(msg: ExecMessage): Promise<unknown> {
   // Antes de cualquier acción: si la sesión se cerró, no se intenta nada (el motor se pausará).
   if ((msg.type.startsWith('DP_DOM_') || msg.type === 'DP_IG') && sessionLost()) {
@@ -514,8 +522,7 @@ async function handle(msg: ExecMessage): Promise<unknown> {
         ok: true,
         userId: cookie('ds_user_id'),
         loggedIn: !!cookie('ds_user_id'),
-        // El primer "username" del HTML de cualquier página es el de la cuenta con sesión iniciada.
-        username: /"username":"([A-Za-z0-9_.]+)"/.exec(document.documentElement.innerHTML)?.[1],
+        username: ownUsername(),
       };
     case 'DP_IG':
       return igRequest(msg);

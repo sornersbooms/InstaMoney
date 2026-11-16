@@ -176,7 +176,7 @@ export const DEFAULT_AUTOMATION: AutomationSettings = {
     lookup: 300,
   },
   blockCooldownHours: 6,
-  monitorEveryMinutes: 10,
+  monitorEveryMinutes: 5,
 };
 
 /** Filtros de segmentación aplicados a cada perfil antes de contactarlo. */
@@ -321,6 +321,8 @@ export interface KeywordRule {
   publicReply?: string;
   /** Solo en estas publicaciones (shortcodes/URLs). Vacío = las últimas publicaciones. */
   posts: string;
+  /** Desde cuándo responde (se responde a comentarios hechos después). */
+  createdAt?: number;
 }
 
 export interface Automations {
