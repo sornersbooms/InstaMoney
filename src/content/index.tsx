@@ -1,8 +1,9 @@
+import './executor';
 import { createRoot } from 'react-dom/client';
 import { FloatingWidget } from './FloatingWidget';
 
 function mount() {
-  const hostId = 'dropprospect-root-host';
+  const hostId = 'instamoney-root-host';
   if (document.getElementById(hostId)) return;
 
   const host = document.createElement('div');

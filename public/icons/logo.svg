@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Logo de InstaMoney: burbuja de mensaje con "$" (mensajes que convierten en ventas). -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b4dff"/>
+      <stop offset=".55" stop-color="#d63cbf"/>
+      <stop offset="1" stop-color="#ff7a45"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#g)"/>
+  <path d="M64 26c-22 0-39 15-39 34 0 10 5 19 13 25l-3 15c-.4 2 1.6 3.4 3.3 2.4L52 94c4 1 8 1.5 12 1.5 22 0 39-15 39-34.5S86 26 64 26z" fill="#fff"/>
+  <text x="64" y="82" text-anchor="middle" font-family="Arial Black, Segoe UI, Arial" font-weight="900" font-size="54" fill="url(#g)">$</text>
+</svg>

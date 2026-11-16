@@ -1,75 +1,88 @@
-# DropProspect — Captura y organización de leads de Instagram
+# InstaMoney — Prospección automática en Instagram
 
-Extensión de Chrome (Manifest V3, React + TypeScript + Vite) para capturar leads de Instagram de forma
-**manual-asistida**: tú navegas Instagram normalmente, la extensión lee lo que ya está visible en pantalla
-para guardarlo como lead, lo organiza en un mini-CRM, lo puntúa con IA (Groq) según tus palabras clave, y te
-ayuda a redactar mensajes con plantillas — pero el envío de cada DM siempre lo haces tú, manualmente, dentro
-de Instagram.
-
-**Por diseño, esta extensión NO hace scraping masivo automático (sin scroll/paginación programática) ni envía
-mensajes en automático.** Ver la sección "Por qué" más abajo.
+Extensión de Chrome (Manifest V3, React + TypeScript + Vite) para captar, contactar y dar seguimiento a prospectos
+de Instagram: campañas automáticas, mensajes con IA, engagement, notas de voz, CRM interno y webhooks.
 
 ## Instalación (modo desarrollador)
 
-1. Instala dependencias y compila:
-   ```bash
-   npm install
-   npm run build
-   ```
-2. Abre `chrome://extensions` en Chrome.
-3. Activa "Modo de desarrollador" (arriba a la derecha).
-4. Click en "Cargar descomprimida" y selecciona la carpeta `dist/` generada.
-5. Fija la extensión en la barra de Chrome. Al hacer click en el ícono se abrirá el panel lateral (side panel).
-
-Para desarrollo con recarga en caliente: `npm run dev` (deja Vite corriendo y recarga la extensión desde
-`chrome://extensions` cuando cambie el código).
-
-## Configuración
-
-1. Abre el side panel → pestaña **Ajustes**.
-2. Pega tu API key de Groq (consíguela gratis en [console.groq.com](https://console.groq.com)).
-3. Define tus palabras clave / perfil de cliente ideal (ej. "dueños de gimnasios, coaches fitness").
-4. Ajusta el límite diario de contactos (es informativo, no bloquea nada — es para que tú mismo mantengas un ritmo prudente).
-
-## Uso
-
-1. **Capturar seguidores**: en Instagram, abre el perfil de una cuenta relevante para tu nicho → click en
-   "Seguidores" → aparece un botón flotante "📥 Capturar seguidores visibles". Haz scroll dentro del modal para
-   cargar más y vuelve a pulsar el botón para capturar los nuevos.
-2. **Capturar comentaristas**: abre un post y pulsa "💬 Capturar comentaristas visibles" para guardar a quienes
-   comentaron (el texto del comentario se usa como señal para el scoring).
-3. En el side panel (pestaña **Leads**) verás todos los leads capturados. Pulsa **"🤖 Analizar con IA (Groq)"**
-   para puntuarlos del 0 al 100 según tus palabras clave.
-4. Crea plantillas de mensaje en la pestaña **Plantillas**.
-5. Abre un chat de Instagram Direct con un lead → botón flotante "✉️ Insertar plantilla" → se rellena el
-   cuadro de mensaje. **Revisa el texto y pulsa tú mismo el botón "Enviar" de Instagram.**
-6. Marca el lead como "Contactado" en el side panel para llevar el conteo diario.
-7. Exporta a CSV cuando quieras desde la pestaña Leads.
-
-## Por qué es manual-asistida y no 100% automática
-
-Instagram/Meta prohíbe explícitamente en sus Términos de Servicio la extracción automatizada masiva de datos
-(scraping con scroll/paginación programática) y la automatización de acciones como enviar mensajes en bloque
-o seguir/dejar de seguir cuentas ("Automated Behavior Policy"). Además de exponer la cuenta a un baneo, el
-envío masivo de mensajes no solicitados a desconocidos puede considerarse spam bajo distintas leyes de
-protección de datos/consumidor según el país de los destinatarios. Por eso el diseño mantiene siempre a la
-persona en control de qué se captura (solo lo visible en pantalla en ese momento) y de cuándo se envía cada
-mensaje (un clic manual sobre el botón de Instagram).
-
-## Estructura del proyecto
-
+```bash
+npm install
+npm run build
 ```
-src/
-  background/     service worker: mensajería y almacenamiento
-  content/         content script inyectado en instagram.com (botón flotante, captura, inserción de plantillas)
-  sidepanel/       UI del CRM (React)
-  lib/             storage, tipos, scoring con Groq, exportación CSV, mensajería tipada
-```
+
+1. Abre `chrome://extensions`, activa "Modo de desarrollador" y pulsa "Cargar descomprimida" → carpeta `dist/`.
+2. Fija la extensión: al pulsar el ícono se abre el panel lateral.
+3. Inicia sesión en Instagram en Chrome.
+
+## Cómo funciona el motor
+
+- Arriba del panel está el **Motor** (encender / apagar). Al encenderlo se abre una **ventana de trabajo** con Instagram,
+  donde se ejecutan las acciones. Déjala abierta y **sin minimizar** (minimizada, Chrome frena la página).
+- Cada 30 s el motor revisa si toca actuar. Hace **una acción visible por turno** y espera un tiempo aleatorio entre la
+  pausa mínima y máxima. Respeta el horario activo, los límites diarios por acción y descansa cada N acciones.
+- Si Instagram limita la cuenta (429, `feedback_required`, checkpoint…), el motor **se pausa solo** las horas
+  configuradas y avisa con una notificación.
+- Pestaña **Actividad**: registro de todo lo que hace el motor.
+
+## Funciones
+
+**Prospección (pestaña Campañas).** Fuente de prospectos:
+- Seguidores o seguidos de una cuenta (competencia).
+- Quienes dieron like o comentaron una publicación/reel (propia o de terceros).
+- Hashtag o ubicación.
+- Tus propios seguidores (campañas de reactivación) o leads ya guardados.
+- "Dejar de seguir a quien no me siguió de vuelta" tras N días (solo cuentas que siguió la extensión).
+
+**Filtros de segmentación:** palabras clave en la bio (incluir/excluir), mín./máx. de seguidores y seguidos, número de
+publicaciones, actividad reciente (publicó en los últimos N días), idioma (es/en/pt), privadas, verificadas, solo
+profesionales y "ya conectados".
+
+**Acciones por prospecto (en este orden):** ver historias (y reaccionar ❤️), like a sus últimas 1-3 publicaciones,
+comentario (IA según la publicación o lista con spintax), seguir, DM (plantillas rotadas o **IA personalizada** con su
+bio y publicaciones), nota de voz y añadir a Mejores Amigos.
+
+**Seguimientos:** pasos con "horas sin respuesta", texto por plantilla o IA y nota de voz opcional. Antes de cada envío
+se revisa el chat: si respondió, la secuencia se corta.
+
+**Automatizaciones (pestaña Auto):**
+- Bienvenida por DM a cada nuevo seguidor (opcional: nota de voz y Mejores Amigos).
+- DM automático cuando alguien comenta una palabra clave en tus reels/publicaciones (+ respuesta pública opcional).
+- Detección de respuestas en la bandeja.
+
+**CRM (pestaña CRM):** chats de Instagram con etapas del embudo (frío, tibio, caliente, cerrado, perdido), filtro de
+no leídos y etiquetas. Las etapas también se cambian desde cada lead.
+
+**Integraciones:** webhooks (POST JSON) para Make, Zapier, n8n, CRMs, email marketing o WhatsApp. Eventos: lead
+capturado, contactado, respondió, cambio de etapa, seguimiento enviado y nuevo seguidor.
+
+**Plantillas:** variables `{nombre}`, `{primer_nombre}`, `{username}` y spintax `{Hola|Buenas|Qué tal}`.
+**Notas de voz:** se suben (MP3/M4A/OGG/WAV/WEBM) o se graban en el panel; máx. 60 s.
+
+El modo manual de antes sigue disponible: botones flotantes para capturar lo visible y la cola de envío guiado.
+
+## Riesgos (léelo)
+
+Automatizar acciones va contra los Términos de Instagram ("Automated Behavior Policy"): la cuenta puede sufrir bloqueos
+temporales de acciones o perderse. Recomendaciones:
+- Cuentas nuevas: empieza con 10-20 DM/día y pausas de 2-5 min; sube poco a poco.
+- Personaliza (IA o spintax). El mismo texto a decenas de personas dispara los filtros de spam.
+- Escribir en masa a desconocidos puede considerarse spam según la ley de protección de datos/consumo de cada país.
 
 ## Notas técnicas
 
-- Los "selectores" de Instagram (`src/content/selectors.ts`) se basan en estructura y atributos de
-  accesibilidad (enlaces `/username/`, `alt`, `role`) en lugar de clases CSS, porque Instagram regenera sus
-  clases en cada build y rompería la extensión constantemente. Si Instagram cambia su HTML de forma más
-  profunda, este es el archivo a revisar.
-- La API key de Groq se guarda únicamente en `chrome.storage.local` de tu navegador.
+```
+src/
+  background/   motor (engine.ts), cliente de la API web de Instagram (ig.ts), ventana de trabajo (worker.ts)
+  content/      UI flotante + executor.ts (peticiones con la sesión y acciones de interfaz: DM, voz, historias)
+  sidepanel/    panel React (leads, campañas, CRM, automatizaciones, actividad, plantillas, ajustes)
+  lib/          tipos, storage, IA (Groq), filtros, spintax, webhooks
+```
+
+- Lecturas y acciones simples (perfiles, seguidores, likes, comentarios, seguir, Mejores Amigos, bandeja) usan la API
+  web interna de Instagram desde la pestaña de trabajo, con la sesión del usuario. Son endpoints **no documentados**:
+  si Instagram los cambia, revisa `src/background/ig.ts`.
+- DM, notas de voz e historias se hacen por la interfaz (`src/content/executor.ts`), buscando botones por `aria-label`
+  y texto (español/inglés). Si Instagram cambia su HTML, ese es el archivo a revisar.
+- La nota de voz sustituye `getUserMedia` en la página para que Instagram "grabe" el audio pregrabado. Es experimental.
+- Todo se guarda en `chrome.storage.local` (con `unlimitedStorage` por los audios). La API key de Groq no sale del
+  navegador salvo hacia `api.groq.com`.

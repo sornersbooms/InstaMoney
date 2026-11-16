@@ -1,127 +1,108 @@
-import { useState } from 'react';
-import type { Settings } from '@/lib/types';
-import { saveSettings } from '@/lib/storage';
+import { useEffect, useState } from 'react';
+import { DEFAULT_SETTINGS, type Settings } from '@/lib/types';
+import { getSettings, saveSettings } from '@/lib/storage';
 import { fetchGroqModels } from '@/lib/groqScoring';
+import { PacingSettings, WebhookSettings } from './AutomationSettingsPanel';
+import { Badge, Button, Callout, Field, Fold, NumberInput, PageHead, useToast } from '../ui';
+import { useNav } from '../hooks';
 
-interface Props {
-  settings: Settings;
-  setSettings: (settings: Settings) => void;
-}
-
-export function SettingsPanel({ settings, setSettings }: Props) {
-  const [local, setLocal] = useState(settings);
-  const [saved, setSaved] = useState(false);
+export function SettingsPanel() {
+  const nav = useNav();
+  const toast = useToast();
+  const [local, setLocal] = useState<Settings>(DEFAULT_SETTINGS);
+  const [dirty, setDirty] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [modelsError, setModelsError] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
-  async function handleSave() {
+  useEffect(() => {
+    getSettings().then((s) => setLocal({ ...DEFAULT_SETTINGS, ...s }));
+  }, []);
+
+  const set = (patch: Partial<Settings>) => {
+    setLocal({ ...local, ...patch });
+    setDirty(true);
+  };
+
+  async function save() {
     await saveSettings(local);
-    setSettings(local);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setDirty(false);
+    toast('Ajustes de IA guardados');
   }
 
-  async function handleLoadModels() {
-    if (!local.groqApiKey) {
-      setModelsError('Pega tu API key de Groq primero.');
-      return;
-    }
-    setModelsError('');
+  async function loadModels() {
+    if (!local.groqApiKey) return toast('Pega tu API key de Groq primero', true);
     setLoadingModels(true);
     try {
       const fetched = await fetchGroqModels(local.groqApiKey);
       setModels(fetched.map((m) => m.id));
-      if (fetched.length === 0) setModelsError('Groq no devolvió modelos para esta cuenta.');
+      toast(fetched.length ? `${fetched.length} modelos disponibles` : 'Groq no devolvió modelos', !fetched.length);
     } catch (err) {
-      setModelsError(err instanceof Error ? err.message : 'Error al consultar modelos de Groq.');
+      toast(err instanceof Error ? err.message : 'Error al consultar Groq', true);
     } finally {
       setLoadingModels(false);
     }
   }
 
+  const aiReady = !!local.groqApiKey && !!local.aiOffer;
+
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ background: '#fff8e1', border: '1px solid #f5d97a', borderRadius: 8, padding: 12, fontSize: 12, color: '#7a5c00' }}>
-        ⚠️ <strong>Úsalo con criterio.</strong> Instagram puede marcar tu cuenta como spam si envías muchos mensajes
-        no solicitados en poco tiempo, aunque los envíes manualmente. Respeta el límite diario que definas abajo,
-        personaliza tus mensajes y evita enviar el mismo texto a decenas de personas seguidas.
-      </div>
+    <>
+      <PageHead title="Ajustes" subtitle="IA, ritmo del motor e integraciones" onBack={() => nav({ page: 'more' })} />
 
-      <div>
-        <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>API key de Groq</label>
-        <input
-          type="password"
-          value={local.groqApiKey ?? ''}
-          onChange={(e) => setLocal({ ...local, groqApiKey: e.target.value })}
-          placeholder="gsk_..."
-          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
-        />
-        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Se guarda solo en tu navegador. Consíguela en console.groq.com.</div>
-      </div>
-
-      <div>
-        <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Modelo de Groq</label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            value={local.groqModel}
-            onChange={(e) => setLocal({ ...local, groqModel: e.target.value })}
-            style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
-          />
-          <button
-            onClick={handleLoadModels}
-            disabled={loadingModels}
-            style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', fontSize: 12, whiteSpace: 'nowrap' }}
-          >
-            {loadingModels ? 'Cargando...' : '🔄 Ver modelos'}
-          </button>
+      <Fold icon="sparkles" title="Inteligencia artificial" sub="Mensajes, comentarios y puntuación de leads" defaultOpen={!aiReady}>
+        <div className="row">
+          <span className="grow muted">Estado</span>
+          <Badge tone={aiReady ? 'success' : 'warning'}>{aiReady ? 'Lista' : 'Falta configurar'}</Badge>
         </div>
-        {modelsError && <div style={{ fontSize: 11, color: '#ed4956', marginTop: 4 }}>{modelsError}</div>}
-        {models.length > 0 && (
-          <select
-            value={local.groqModel}
-            onChange={(e) => setLocal({ ...local, groqModel: e.target.value })}
-            style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', marginTop: 6 }}
-          >
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        )}
-        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-          Groq retira modelos de vez en cuando. Si te da error "model_not_found", pulsa "Ver modelos" y elige uno de la lista actual.
-        </div>
-      </div>
+        <Field label="Qué ofreces" hint="La IA lo usa para que cada mensaje conecte con lo que vendes.">
+          <textarea className="textarea" value={local.aiOffer ?? ''} onChange={(e) => set({ aiOffer: e.target.value })} placeholder="Ej. Soy coach de nutrición y ayudo a mamás a bajar de peso con un plan de 8 semanas." />
+        </Field>
+        <Field label="Tu cliente ideal" hint="Sirve para puntuar leads de 0 a 100.">
+          <input className="input" value={local.icpKeywords} onChange={(e) => set({ icpKeywords: e.target.value })} placeholder="Ej. emprendedoras fitness, dueños de gimnasios" />
+        </Field>
+        <Field label="API key de Groq" hint={<>Gratis en <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com</a>. Se guarda solo en tu navegador.</>}>
+          <div className="row">
+            <input className="input" type={showKey ? 'text' : 'password'} value={local.groqApiKey ?? ''} onChange={(e) => set({ groqApiKey: e.target.value.trim() })} placeholder="gsk_…" />
+            <Button iconOnly icon="eye" title={showKey ? 'Ocultar' : 'Mostrar'} onClick={() => setShowKey((v) => !v)} />
+          </div>
+        </Field>
+        <Field label="Modelo" hint="Si ves «model_not_found», pulsa Ver modelos y elige uno actual.">
+          <div className="row">
+            {models.length > 0 ? (
+              <select className="select" value={local.groqModel} onChange={(e) => set({ groqModel: e.target.value })}>
+                {!models.includes(local.groqModel) && <option value={local.groqModel}>{local.groqModel}</option>}
+                {models.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            ) : (
+              <input className="input" value={local.groqModel} onChange={(e) => set({ groqModel: e.target.value })} />
+            )}
+            <Button icon="refresh" onClick={loadModels} disabled={loadingModels}>{loadingModels ? '…' : 'Ver modelos'}</Button>
+          </div>
+        </Field>
+        <Field label="Meta diaria de contactos" hint="Solo informativa: aparece en la pantalla de Leads.">
+          <NumberInput value={local.dailyContactSoftLimit} min={1} onChange={(v) => set({ dailyContactSoftLimit: v ?? 15 })} />
+        </Field>
+        <Button variant="primary" icon="check" block onClick={save} disabled={!dirty}>
+          {dirty ? 'Guardar ajustes de IA' : 'Guardado'}
+        </Button>
+      </Fold>
 
-      <div>
-        <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Palabras clave / perfil de cliente ideal</label>
-        <textarea
-          value={local.icpKeywords}
-          onChange={(e) => setLocal({ ...local, icpKeywords: e.target.value })}
-          placeholder="ej. emprendedores fitness, dueños de gimnasios, coaches online..."
-          rows={3}
-          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', resize: 'vertical' }}
-        />
-      </div>
+      <Fold icon="shield" title="Ritmo y seguridad" sub="Pausas, horario y límites diarios">
+        <PacingSettings />
+      </Fold>
 
-      <div>
-        <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-          Límite diario de contactos (informativo)
-        </label>
-        <input
-          type="number"
-          min={1}
-          value={local.dailyContactSoftLimit}
-          onChange={(e) => setLocal({ ...local, dailyContactSoftLimit: Number(e.target.value) || 1 })}
-          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
-        />
-      </div>
+      <Fold icon="link" title="Integraciones" sub="Webhooks hacia CRM, email o WhatsApp">
+        <WebhookSettings />
+      </Fold>
 
-      <button onClick={handleSave} style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: '#0095f6', color: '#fff', fontWeight: 600 }}>
-        {saved ? '✓ Guardado' : 'Guardar ajustes'}
-      </button>
-    </div>
+      <Callout tone="warning">
+        <b>Úsalo con criterio.</b> Automatizar acciones va contra las normas de Instagram y puede causar bloqueos o la pérdida de la
+        cuenta. Usa pausas largas, límites bajos en cuentas nuevas y mensajes personalizados. Escribir en masa a desconocidos puede
+        considerarse spam según la ley de cada país.
+      </Callout>
+    </>
   );
 }

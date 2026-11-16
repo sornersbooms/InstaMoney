@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Lead, LeadStatus } from '@/lib/types';
+import { Avatar, Badge, ConfirmButton, Icon, timeAgo } from '../ui';
+import { formatCount, setLeadStage, SOURCE_NAMES, STAGES, stageOf, STATUS_INFO } from '../crm';
 
 interface Props {
   lead: Lead;
@@ -8,134 +10,131 @@ interface Props {
   onMarkContacted: (lead: Lead) => void;
 }
 
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  new: 'Nuevo',
-  contacted: 'Contactado',
-  replied: 'Respondió',
-  converted: 'Convertido',
-  discarded: 'Descartado',
-};
-
-const STATUS_COLORS: Record<LeadStatus, string> = {
-  new: '#0095f6',
-  contacted: '#f5a623',
-  replied: '#7b61ff',
-  converted: '#00a400',
-  discarded: '#8e8e8e',
-};
-
 export function LeadCard({ lead, onUpdate, onDelete, onMarkContacted }: Props) {
+  const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(lead.notes);
   const [tagInput, setTagInput] = useState('');
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  const stage = stageOf(lead);
+  const status = STATUS_INFO[lead.status];
 
   function addTag() {
-    if (!tagInput.trim()) return;
-    onUpdate(lead.id, { tags: [...lead.tags, tagInput.trim()] });
+    const t = tagInput.trim();
+    if (!t || lead.tags.includes(t)) return setTagInput('');
+    onUpdate(lead.id, { tags: [...lead.tags, t] });
     setTagInput('');
   }
 
-  function handleStatusChange(status: LeadStatus) {
-    if (status === 'contacted' && lead.status !== 'contacted') {
-      onMarkContacted(lead);
-    }
-    onUpdate(lead.id, { status });
+  function setStatus(s: LeadStatus) {
+    if (s === 'contacted' && lead.status !== 'contacted') onMarkContacted(lead);
+    onUpdate(lead.id, { status: s });
   }
 
+  const scoreTone = lead.score == null ? undefined : lead.score >= 60 ? 'success' : lead.score >= 30 ? 'warning' : undefined;
+
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        {lead.profilePicUrl && !avatarFailed ? (
-          <img
-            src={lead.profilePicUrl}
-            alt={lead.username}
-            onError={() => setAvatarFailed(true)}
-            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              background: '#dbdbdb',
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
-              fontWeight: 700,
-            }}
-          >
-            {lead.username.charAt(0).toUpperCase()}
+    <div className="card tight" style={{ borderLeft: `3px solid ${stage.color}` }}>
+      <div className="row" style={{ cursor: 'pointer' }} onClick={() => setOpen((v) => !v)}>
+        <Avatar src={lead.profilePicUrl} name={lead.username} />
+        <div className="grow">
+          <div className="row" style={{ gap: 6 }}>
+            <b className="ellipsis" style={{ fontSize: 13 }}>@{lead.username}</b>
+            {lead.isVerified && <Icon name="check" size={12} />}
           </div>
-        )}
-        <div style={{ flex: 1 }}>
-          <a href={`https://www.instagram.com/${lead.username}/`} target="_blank" rel="noreferrer" style={{ fontWeight: 600, fontSize: 14, color: '#262626', textDecoration: 'none' }}>
-            @{lead.username}
-          </a>
-          {lead.fullName && <div style={{ fontSize: 12, color: '#666' }}>{lead.fullName}</div>}
+          <div className="muted ellipsis">
+            {lead.fullName || SOURCE_NAMES[lead.sourceType]}
+            {lead.followerCount != null && ` · ${formatCount(lead.followerCount)} seg.`}
+          </div>
         </div>
-        {typeof lead.score === 'number' && (
-          <div title={lead.scoreReason} style={{ fontSize: 12, fontWeight: 700, color: lead.score >= 60 ? '#00a400' : lead.score >= 30 ? '#f5a623' : '#8e8e8e' }}>
-            {lead.score}/100
-          </div>
-        )}
-      </div>
-
-      {lead.bio && <div style={{ fontSize: 12, color: '#444', background: '#f7f7f7', borderRadius: 6, padding: 6 }}>{lead.bio}</div>}
-
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {(Object.keys(STATUS_LABELS) as LeadStatus[]).map((status) => (
-          <button
-            key={status}
-            onClick={() => handleStatusChange(status)}
-            style={{
-              fontSize: 11,
-              padding: '4px 8px',
-              borderRadius: 12,
-              border: lead.status === status ? 'none' : '1px solid #ddd',
-              background: lead.status === status ? STATUS_COLORS[status] : '#fff',
-              color: lead.status === status ? '#fff' : '#444',
-            }}
-          >
-            {STATUS_LABELS[status]}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {lead.tags.map((tag) => (
-          <span key={tag} style={{ fontSize: 11, background: '#eef', borderRadius: 10, padding: '2px 8px' }}>
-            {tag}
+        {lead.score != null && (
+          <span title={lead.scoreReason}>
+            <Badge tone={scoreTone}>{lead.score}</Badge>
           </span>
-        ))}
-        <input
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addTag()}
-          placeholder="+ tag"
-          style={{ fontSize: 11, border: '1px dashed #ccc', borderRadius: 10, padding: '2px 8px', width: 60 }}
-        />
+        )}
+        <Badge tone={status.tone}>{status.label}</Badge>
+        <Icon name={open ? 'chevronDown' : 'chevronRight'} size={16} />
       </div>
 
-      <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        onBlur={() => onUpdate(lead.id, { notes })}
-        placeholder="Notas..."
-        rows={2}
-        style={{ fontSize: 12, border: '1px solid #eee', borderRadius: 6, padding: 6, resize: 'vertical' }}
-      />
+      {open && (
+        <div className="stack" style={{ gap: 10, marginTop: 6 }}>
+          {lead.bio && <div style={{ fontSize: 12, color: 'var(--text-2)', background: 'var(--surface-2)', borderRadius: 8, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>{lead.bio}</div>}
+          {lead.scoreReason && (
+            <div className="muted small row" style={{ gap: 5 }}>
+              <Icon name="sparkles" size={13} /> {lead.scoreReason}
+            </div>
+          )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 10, color: '#999' }}>
-          Fuente: {lead.sourceType === 'followers_list' ? 'Seguidores' : lead.sourceType === 'post_comments' ? 'Comentarios' : 'Manual'}
-        </span>
-        <button onClick={() => onDelete(lead.id)} style={{ fontSize: 11, color: '#ed4956', background: 'none', border: 'none' }}>
-          Eliminar
-        </button>
-      </div>
+          <div className="stack" style={{ gap: 5 }}>
+            <span className="muted small" style={{ fontWeight: 600 }}>Etapa del embudo</span>
+            <div className="chips">
+              {STAGES.map((s) => (
+                <button
+                  key={s.id}
+                  className="chip"
+                  onClick={() => setLeadStage(lead, s.id)}
+                  style={(lead.stage ?? 'frio') === s.id ? { background: s.color, borderColor: s.color, color: '#fff' } : undefined}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="stack" style={{ gap: 5 }}>
+            <span className="muted small" style={{ fontWeight: 600 }}>Estado</span>
+            <div className="chips">
+              {(Object.keys(STATUS_INFO) as LeadStatus[]).map((s) => (
+                <button key={s} className={`chip${lead.status === s ? ' active' : ''}`} onClick={() => setStatus(s)}>
+                  {STATUS_INFO[s].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(lead.contactedAt || lead.followedAt || lead.storyViewedAt || lead.likedAt) && (
+            <div className="row wrap small" style={{ gap: 10, color: 'var(--text-2)' }}>
+              {lead.storyViewedAt && <span className="row" style={{ gap: 4 }}><Icon name="eye" size={13} /> historia</span>}
+              {lead.likedAt && <span className="row" style={{ gap: 4 }}><Icon name="heart" size={13} /> like</span>}
+              {lead.followedAt && !lead.unfollowedAt && <span className="row" style={{ gap: 4 }}><Icon name="userPlus" size={13} /> seguido</span>}
+              {lead.contactedAt && <span className="row" style={{ gap: 4 }}><Icon name="send" size={13} /> {timeAgo(lead.contactedAt)}</span>}
+              {lead.followUpStep ? <span className="row" style={{ gap: 4 }}><Icon name="repeat" size={13} /> {lead.followUpStep} seg.</span> : null}
+              {lead.repliedAt && <span className="row" style={{ gap: 4, color: 'var(--success)' }}><Icon name="message" size={13} /> respondió</span>}
+            </div>
+          )}
+
+          <div className="row wrap" style={{ gap: 5 }}>
+            {lead.tags.map((tag) => (
+              <span key={tag} className="tag">
+                <Icon name="tag" size={11} /> {tag}
+                <button onClick={() => onUpdate(lead.id, { tags: lead.tags.filter((t) => t !== tag) })} aria-label={`Quitar ${tag}`}>
+                  <Icon name="x" size={11} />
+                </button>
+              </span>
+            ))}
+            <input
+              className="input"
+              style={{ height: 26, width: 110, fontSize: 12, padding: '2px 8px' }}
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addTag()}
+              onBlur={addTag}
+              placeholder="+ etiqueta"
+            />
+          </div>
+
+          <textarea className="textarea" style={{ minHeight: 54 }} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== lead.notes && onUpdate(lead.id, { notes })} placeholder="Notas privadas…" />
+
+          <div className="row">
+            <a className="btn sm" href={`https://www.instagram.com/${lead.username}/`} target="_blank" rel="noreferrer">
+              <Icon name="external" size={14} /> Perfil
+            </a>
+            <a className="btn sm" href={`https://www.instagram.com/${lead.username}/`} target="_blank" rel="noreferrer">
+              <Icon name="send" size={14} /> Mensaje
+            </a>
+            <span className="muted small grow" style={{ textAlign: 'right' }}>{SOURCE_NAMES[lead.sourceType]} · {timeAgo(lead.capturedAt)}</span>
+            <ConfirmButton size="sm" onConfirm={() => onDelete(lead.id)} confirmLabel="¿Borrar?" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

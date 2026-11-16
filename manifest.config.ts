@@ -3,8 +3,8 @@ import pkg from './package.json';
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'DropProspect — Leads Instagram',
-  description: 'Captura y organiza leads de Instagram de forma manual-asistida, con scoring por IA y plantillas de mensajes.',
+  name: 'InstaMoney — Prospección en Instagram',
+  description: 'Prospección en Instagram: campañas automáticas de DM, IA, seguimientos, engagement y CRM.',
   version: pkg.version,
   icons: {
     16: 'public/icons/icon16.png',
@@ -25,9 +25,12 @@ export default defineManifest({
   side_panel: {
     default_path: 'src/sidepanel/index.html',
   },
-  permissions: ['storage', 'sidePanel', 'alarms', 'notifications', 'activeTab'],
+  permissions: ['storage', 'unlimitedStorage', 'sidePanel', 'alarms', 'notifications', 'activeTab', 'scripting', 'tabs'],
+  // Webhooks: se pide permiso para el dominio concreto cuando el usuario añade uno en Ajustes.
+  optional_host_permissions: ['https://*/*', 'http://*/*'],
   host_permissions: [
     'https://www.instagram.com/*',
+    'https://ig.me/*',
     'https://api.groq.com/*',
     'https://*.cdninstagram.com/*',
     'https://*.fbcdn.net/*',

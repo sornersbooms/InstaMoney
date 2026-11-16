@@ -156,8 +156,9 @@ export function isPostPage(): boolean {
   return /\/p\/[^/]+\/?/.test(location.pathname) || /\/reel\/[^/]+\/?/.test(location.pathname);
 }
 
+/** Chat abierto: página /direct/… o la ventana flotante de chat que se abre sobre un perfil. */
 export function isDirectThreadPage(): boolean {
-  return location.pathname.startsWith('/direct/');
+  return location.pathname.startsWith('/direct/') || !!getDmComposeBox();
 }
 
 /** Caja de redacción del DM (contenteditable). */

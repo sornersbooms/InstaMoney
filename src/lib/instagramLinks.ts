@@ -1,11 +1,9 @@
 /**
- * Deep link oficial de Instagram para abrir directo el compositor de DM con un usuario
- * (el mismo formato que usan los botones "Enviar mensaje" de perfiles de negocio). Ahorra
- * el clic de "Enviar mensaje" en el perfil, pero el envío del mensaje lo sigue disparando
- * la persona pulsando "Enviar" dentro de Instagram.
+ * Antes se usaba ig.me/m/usuario, pero en Chrome de escritorio esa dirección da página de error.
+ * Se abre el perfil: ahí el botón «Enviar mensaje» abre el chat (el botón flotante lo detecta).
  */
 export function directMessageUrl(username: string): string {
-  return `https://ig.me/m/${username}`;
+  return `https://www.instagram.com/${username}/`;
 }
 
 export function profileUrl(username: string): string {

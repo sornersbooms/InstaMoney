@@ -1,71 +1,105 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Template } from '@/lib/types';
-import { saveTemplates } from '@/lib/storage';
+import { getTemplates, saveTemplates } from '@/lib/storage';
+import { renderMessage } from '@/lib/text';
+import { VoiceNotes } from './VoiceNotes';
+import { Button, ConfirmButton, Empty, Field, Icon, PageHead, Segmented, useToast } from '../ui';
+import { useNav } from '../hooks';
 
-interface Props {
-  templates: Template[];
-  setTemplates: (templates: Template[]) => void;
-}
+const VARS = ['{primer_nombre}', '{nombre}', '{username}', '{Hola|Buenas|Qué tal}'];
 
-export function Templates({ templates, setTemplates }: Props) {
-  const [name, setName] = useState('');
-  const [body, setBody] = useState('');
+export function Templates() {
+  const nav = useNav();
+  const toast = useToast();
+  const [tab, setTab] = useState<'text' | 'voice'>('text');
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [editing, setEditing] = useState<Template | null>(null);
 
-  async function addTemplate() {
-    if (!name.trim() || !body.trim()) return;
-    const updated = [...templates, { id: `${Date.now()}`, name: name.trim(), body: body.trim() }];
-    await saveTemplates(updated);
-    setTemplates(updated);
-    setName('');
-    setBody('');
+  useEffect(() => {
+    getTemplates().then(setTemplates);
+  }, []);
+
+  async function persist(next: Template[]) {
+    await saveTemplates(next);
+    setTemplates(next);
   }
 
-  async function removeTemplate(id: string) {
-    const updated = templates.filter((t) => t.id !== id);
-    await saveTemplates(updated);
-    setTemplates(updated);
+  async function saveEditing() {
+    if (!editing || !editing.name.trim() || !editing.body.trim()) return toast('Pon un nombre y un texto', true);
+    const exists = templates.some((t) => t.id === editing.id);
+    await persist(exists ? templates.map((t) => (t.id === editing.id ? editing : t)) : [...templates, editing]);
+    setEditing(null);
+    toast('Plantilla guardada');
   }
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Nueva plantilla</h3>
-        <input
-          placeholder="Nombre (ej. Primer contacto)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', marginBottom: 8 }}
-        />
-        <textarea
-          placeholder="Hola {nombre}, vi tu perfil y..."
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={4}
-          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', resize: 'vertical' }}
-        />
-        <div style={{ fontSize: 11, color: '#999', margin: '4px 0' }}>Variables disponibles: {'{nombre}'}, {'{username}'}</div>
-        <button onClick={addTemplate} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0095f6', color: '#fff', fontWeight: 600 }}>
-          Guardar plantilla
-        </button>
-      </div>
+    <>
+      <PageHead title="Plantillas y audios" subtitle="Mensajes y notas de voz reutilizables" onBack={() => nav({ page: 'more' })} />
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'text', label: `Mensajes (${templates.length})`, icon: 'file' },
+          { value: 'voice', label: 'Notas de voz', icon: 'mic' },
+        ]}
+      />
 
-      <div>
-        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Tus plantillas</h3>
-        {templates.length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Aún no tienes plantillas.</div>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {templates.map((t) => (
-            <div key={t.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, background: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: 13 }}>{t.name}</strong>
-                <button onClick={() => removeTemplate(t.id)} style={{ fontSize: 11, color: '#ed4956', background: 'none', border: 'none' }}>
-                  Eliminar
-                </button>
+      {tab === 'voice' && <VoiceNotes />}
+
+      {tab === 'text' && editing && (
+        <div className="card">
+          <Field label="Nombre">
+            <input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Ej. Primer contacto" autoFocus />
+          </Field>
+          <Field label="Mensaje">
+            <textarea className="textarea" style={{ minHeight: 110 }} value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} placeholder="{Hola|Buenas} {primer_nombre}, vi tu perfil y…" />
+          </Field>
+          <div className="row wrap" style={{ gap: 5 }}>
+            {VARS.map((v) => (
+              <button key={v} className="chip" style={{ height: 24, fontSize: 11 }} onClick={() => setEditing({ ...editing, body: `${editing.body}${v}` })}>
+                + {v}
+              </button>
+            ))}
+          </div>
+          {editing.body && (
+            <div className="callout primary">
+              <Icon name="eye" size={15} />
+              <div>
+                <b>Vista previa</b>
+                <div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{renderMessage(editing.body, { username: 'ana.fit', fullName: 'Ana López' })}</div>
               </div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{t.body}</div>
             </div>
-          ))}
+          )}
+          <div className="row">
+            <Button onClick={() => setEditing(null)}>Cancelar</Button>
+            <div className="grow">
+              <Button variant="primary" block icon="check" onClick={saveEditing}>Guardar plantilla</Button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {tab === 'text' && !editing && (
+        <>
+          <Button variant="brand" icon="plus" block onClick={() => setEditing({ id: `${Date.now()}`, name: '', body: '' })}>Nueva plantilla</Button>
+          {templates.length === 0 ? (
+            <Empty icon="file" title="Sin plantillas" text="Crea mensajes con variables y variantes para que cada envío suene distinto. Si usas IA en tus campañas, no las necesitas." />
+          ) : (
+            <div className="stack">
+              {templates.map((t) => (
+                <div key={t.id} className="card tight">
+                  <div className="row">
+                    <b className="grow ellipsis">{t.name}</b>
+                    <Button size="sm" variant="ghost" iconOnly icon="edit" title="Editar" onClick={() => setEditing(t)} />
+                    <ConfirmButton size="sm" onConfirm={() => persist(templates.filter((x) => x.id !== t.id))} confirmLabel="¿Borrar?" />
+                  </div>
+                  <div className="muted" style={{ whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.body}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }

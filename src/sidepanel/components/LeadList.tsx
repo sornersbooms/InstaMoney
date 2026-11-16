@@ -1,149 +1,195 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LeadCard } from './LeadCard';
-import { Filters, type FilterState } from './Filters';
 import { SendQueuePanel } from './SendQueuePanel';
-import type { Lead, Settings, Template } from '@/lib/types';
-import { deleteLead, incrementContactedToday, saveLeads, saveSendQueue, updateLead } from '@/lib/storage';
+import type { LeadStage, LeadStatus, Settings, Template } from '@/lib/types';
+import { deleteLead, getSettings, getTemplates, getTodayStats, incrementContactedToday, saveLeads, saveSendQueue, updateLead } from '@/lib/storage';
 import { downloadCsv } from '@/lib/csvExport';
 import { scoreLeadsWithGroq } from '@/lib/groqScoring';
+import { Button, Chip, Empty, Icon, Menu, PageHead, SearchInput, Segmented, useToast } from '../ui';
+import { useLeads, useNav } from '../hooks';
+import { STAGES, STATUS_INFO } from '../crm';
 
-interface Props {
-  leads: Lead[];
-  setLeads: (leads: Lead[]) => void;
-  settings: Settings;
-  templates: Template[];
-  onContacted: () => void;
-}
+type Sort = 'recent' | 'score' | 'followers';
 
-export function LeadList({ leads, setLeads, settings, templates, onContacted }: Props) {
-  const [filters, setFilters] = useState<FilterState>({ search: '', status: 'all', sortByScore: false });
+const PAGE = 40;
+
+export function LeadList({ initialStage }: { initialStage?: string }) {
+  const nav = useNav();
+  const toast = useToast();
+  const leads = useLeads();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<LeadStatus | 'all'>('all');
+  const [stage, setStage] = useState<LeadStage | 'all'>((initialStage as LeadStage) ?? 'all');
+  const [sort, setSort] = useState<Sort>('recent');
   const [scoring, setScoring] = useState(false);
-  const [scoringError, setScoringError] = useState('');
-  const [confirmingWipe, setConfirmingWipe] = useState(false);
+  const [wiping, setWiping] = useState(false);
+  const [limit, setLimit] = useState(PAGE);
+  const [contactedToday, setContactedToday] = useState(0);
+
+  useEffect(() => {
+    getSettings().then(setSettings);
+    getTemplates().then(setTemplates);
+    getTodayStats().then((s) => setContactedToday(s.contactedCount));
+  }, [leads]);
 
   const filtered = useMemo(() => {
-    let result = leads;
-    if (filters.status !== 'all') {
-      result = result.filter((l) => l.status === filters.status);
+    let r = leads;
+    if (status !== 'all') r = r.filter((l) => l.status === status);
+    if (stage !== 'all') r = r.filter((l) => (l.stage ?? 'frio') === stage);
+    if (search.trim()) {
+      const q = search.toLowerCase().replace(/^@/, '');
+      r = r.filter((l) => l.username.toLowerCase().includes(q) || l.fullName?.toLowerCase().includes(q) || l.bio?.toLowerCase().includes(q) || l.tags.some((t) => t.toLowerCase().includes(q)));
     }
-    if (filters.search.trim()) {
-      const q = filters.search.toLowerCase();
-      result = result.filter(
-        (l) => l.username.toLowerCase().includes(q) || l.fullName?.toLowerCase().includes(q) || l.bio?.toLowerCase().includes(q),
-      );
-    }
-    if (filters.sortByScore) {
-      result = [...result].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-    }
-    return result;
-  }, [leads, filters]);
+    if (sort === 'score') r = [...r].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    if (sort === 'followers') r = [...r].sort((a, b) => (b.followerCount ?? -1) - (a.followerCount ?? -1));
+    return r;
+  }, [leads, status, stage, search, sort]);
 
-  async function handleUpdate(id: string, patch: Partial<Lead>) {
-    await updateLead(id, patch);
-    setLeads(leads.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  }
-
-  async function handleDelete(id: string) {
-    await deleteLead(id);
-    setLeads(leads.filter((l) => l.id !== id));
-  }
-
-  async function handleMarkContacted() {
-    await incrementContactedToday();
-    onContacted();
-  }
-
-  async function handleDeleteAll() {
-    if (!confirmingWipe) {
-      setConfirmingWipe(true);
-      setTimeout(() => setConfirmingWipe(false), 5000);
-      return;
-    }
-    await saveLeads([]);
-    await saveSendQueue(null);
-    setLeads([]);
-    setConfirmingWipe(false);
-  }
+  const statusCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const l of leads) out[l.status] = (out[l.status] ?? 0) + 1;
+    return out;
+  }, [leads]);
 
   async function handleAnalyze() {
-    setScoringError('');
-    const pending = filtered.filter((l) => l.score === undefined);
-    if (pending.length === 0) {
-      setScoringError('Todos los leads visibles ya tienen score.');
-      return;
-    }
+    const pending = filtered.filter((l) => l.score === undefined).slice(0, 40);
+    if (!settings) return;
+    if (pending.length === 0) return toast('Todos los leads visibles ya tienen puntuación');
     setScoring(true);
     try {
       const results = await scoreLeadsWithGroq(pending, settings);
       const byUsername = new Map(results.map((r) => [r.username, r]));
-      const updated = leads.map((l) => {
+      await saveLeads(leads.map((l) => {
         const r = byUsername.get(l.username);
         return r ? { ...l, score: r.score, scoreReason: r.reason } : l;
-      });
-      await saveLeads(updated);
-      setLeads(updated);
+      }));
+      toast(`${results.length} leads puntuados con IA`);
     } catch (err) {
-      setScoringError(err instanceof Error ? err.message : 'Error al analizar con IA.');
+      toast(err instanceof Error ? err.message : 'Error al analizar con IA', true);
     } finally {
       setScoring(false);
     }
   }
 
+  async function wipeAll() {
+    await saveLeads([]);
+    await saveSendQueue(null);
+    setWiping(false);
+    toast('Leads eliminados');
+  }
+
+  const softLimit = settings?.dailyContactSoftLimit ?? 15;
+
   return (
-    <div>
-      <Filters filters={filters} onChange={setFilters} />
-      <div style={{ display: 'flex', gap: 8, padding: '0 16px 10px' }}>
-        <button
-          onClick={handleAnalyze}
-          disabled={scoring}
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', background: '#7b61ff', color: '#fff', fontWeight: 600, fontSize: 13 }}
-        >
-          {scoring ? 'Analizando...' : '🤖 Analizar con IA (Groq)'}
-        </button>
-        <button
-          onClick={() => downloadCsv(filtered)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', fontSize: 13 }}
-        >
-          ⬇️ CSV
-        </button>
-        <button
-          onClick={handleDeleteAll}
-          disabled={leads.length === 0}
-          title="Eliminar todos los leads guardados"
-          style={{
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: `1px solid ${confirmingWipe ? '#ed4956' : '#ddd'}`,
-            background: confirmingWipe ? '#ed4956' : '#fff',
-            color: confirmingWipe ? '#fff' : '#ed4956',
-            fontSize: 13,
-            fontWeight: confirmingWipe ? 700 : 400,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {confirmingWipe ? `¿Borrar ${leads.length}? Confirma` : '🗑️'}
-        </button>
+    <>
+      <PageHead
+        title="Leads"
+        subtitle={`${leads.length} guardados · ${contactedToday}/${softLimit} contactados hoy`}
+        actions={
+          <>
+            <Button size="sm" variant="soft" icon="sparkles" onClick={handleAnalyze} disabled={scoring || leads.length === 0}>
+              {scoring ? 'Analizando…' : 'Puntuar'}
+            </Button>
+            <Menu
+              items={[
+                { label: 'Exportar CSV', icon: 'download', onClick: () => downloadCsv(filtered) },
+                { label: 'Borrar todos los leads', icon: 'trash', danger: true, onClick: () => setWiping(true) },
+              ]}
+            />
+          </>
+        }
+      />
+
+      {wiping && (
+        <div className="callout danger" style={{ alignItems: 'center' }}>
+          <span className="grow">¿Borrar los {leads.length} leads? No se puede deshacer.</span>
+          <Button size="sm" onClick={() => setWiping(false)}>No</Button>
+          <Button size="sm" variant="danger" onClick={wipeAll}>Borrar</Button>
+        </div>
+      )}
+
+      <div className="row">
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setLimit(PAGE); }} placeholder="Buscar por usuario, nombre, bio o etiqueta" />
       </div>
-      {scoringError && <div style={{ color: '#ed4956', fontSize: 12, padding: '0 16px 10px' }}>{scoringError}</div>}
-
-      <SendQueuePanel allLeads={leads} candidateLeads={filtered} templates={templates} />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 16px' }}>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: 24 }}>
-            No hay leads todavía. Ve a Instagram, abre la lista de seguidores o los comentarios de un post, y usa el botón flotante para capturar.
-          </div>
-        )}
-        {filtered.map((lead) => (
-          <LeadCard
-            key={lead.id}
-            lead={lead}
-            onUpdate={handleUpdate}
-            onDelete={handleDelete}
-            onMarkContacted={handleMarkContacted}
-          />
+      <div className="chips">
+        <Chip active={status === 'all'} onClick={() => setStatus('all')} count={leads.length}>Todos</Chip>
+        {(Object.keys(STATUS_INFO) as LeadStatus[]).map((s) => (
+          <Chip key={s} active={status === s} onClick={() => setStatus(s)} count={statusCounts[s] ?? 0}>
+            {STATUS_INFO[s].label}
+          </Chip>
         ))}
       </div>
-    </div>
+      <div className="chips">
+        <Chip active={stage === 'all'} onClick={() => setStage('all')}>Cualquier etapa</Chip>
+        {STAGES.map((s) => (
+          <Chip key={s.id} active={stage === s.id} onClick={() => setStage(s.id)} color={s.color}>
+            {s.label}
+          </Chip>
+        ))}
+      </div>
+      <Segmented
+        value={sort}
+        onChange={setSort}
+        options={[
+          { value: 'recent', label: 'Recientes' },
+          { value: 'score', label: 'Puntuación IA' },
+          { value: 'followers', label: 'Seguidores' },
+        ]}
+      />
+
+      {leads.length === 0 ? (
+        <div className="card">
+          <Empty
+            icon="users"
+            title="Aún no hay leads"
+            text="Crea una campaña para captarlos automáticamente, o abre en Instagram una lista de seguidores y usa el botón flotante para capturar."
+            action={<Button variant="brand" icon="rocket" onClick={() => nav({ page: 'campaigns', param: 'new' })}>Crear campaña</Button>}
+          />
+        </div>
+      ) : filtered.length === 0 ? (
+        <Empty icon="search" title="Sin resultados" text="Prueba con otro filtro o búsqueda." />
+      ) : (
+        <div className="stack">
+          {filtered.slice(0, limit).map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onUpdate={(id, patch) => updateLead(id, patch)}
+              onDelete={async (id) => {
+                await deleteLead(id);
+                toast('Lead eliminado');
+              }}
+              onMarkContacted={async () => {
+                const s = await incrementContactedToday();
+                setContactedToday(s.contactedCount);
+              }}
+            />
+          ))}
+          {filtered.length > limit && (
+            <Button block onClick={() => setLimit((l) => l + PAGE)}>
+              Mostrar más ({filtered.length - limit} restantes)
+            </Button>
+          )}
+        </div>
+      )}
+
+      {leads.length > 0 && (
+        <details className="fold">
+          <summary>
+            <Icon name="send" size={16} />
+            <span className="grow">
+              Envío manual guiado
+              <span className="muted" style={{ display: 'block', fontWeight: 400 }}>Recorre los leads filtrados y envías tú cada mensaje</span>
+            </span>
+            <Icon name="chevronRight" size={16} className="chev" />
+          </summary>
+          <div className="fold-body">
+            <SendQueuePanel allLeads={leads} candidateLeads={filtered} templates={templates} />
+          </div>
+        </details>
+      )}
+    </>
   );
 }
