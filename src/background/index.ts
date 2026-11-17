@@ -69,6 +69,7 @@ type BgMessage =
   | { type: 'DP_BG_CAMPAIGN_STATUS'; id: string; status: Campaign['status'] }
   | { type: 'DP_BG_CAMPAIGN_DELETE'; id: string }
   | { type: 'DP_BG_CLEAR_SYSTEM_WORK' }
+  | { type: 'DP_BG_RESET_KEYWORDS' }
   | { type: 'DP_BG_INBOX' }
   | { type: 'DP_BG_SESSION' }
   | { type: 'DP_BG_SHOW_WORKER' };
@@ -137,6 +138,13 @@ async function handle(message: BgMessage): Promise<unknown> {
       return { ok: true };
     case 'DP_BG_CLEAR_SYSTEM_WORK':
       await mutateEngine((e) => (e.systemWork = []));
+      return { ok: true };
+    case 'DP_BG_RESET_KEYWORDS':
+      // Olvida a quién ya se respondió por palabra clave (para repetir pruebas).
+      await mutateEngine((e) => {
+        e.keywordHandled = [];
+        e.lastCommentPk = {};
+      });
       return { ok: true };
     case 'DP_BG_INBOX':
       try {

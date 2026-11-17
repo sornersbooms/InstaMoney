@@ -110,9 +110,7 @@ export function LeadList({ initialStage }: { initialStage?: string }) {
         </div>
       )}
 
-      <div className="row">
-        <SearchInput value={search} onChange={(v) => { setSearch(v); setLimit(PAGE); }} placeholder="Buscar por usuario, nombre, bio o etiqueta" />
-      </div>
+      <SearchInput value={search} onChange={(v) => { setSearch(v); setLimit(PAGE); }} placeholder="Buscar por usuario, nombre, bio o etiqueta" />
       <div className="chips">
         <Chip active={status === 'all'} onClick={() => setStatus('all')} count={leads.length}>Todos</Chip>
         {(Object.keys(STATUS_INFO) as LeadStatus[]).map((s) => (

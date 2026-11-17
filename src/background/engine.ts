@@ -17,6 +17,7 @@ import { rejectReason } from '@/lib/filters';
 import { AiSkip, generateComment, generateFollowUp, generateOpener } from '@/lib/ai';
 import { randomBetween, renderMessage, spin, splitList, uid } from '@/lib/text';
 import { emitWebhook } from '@/lib/webhooks';
+import { licenseForEngine } from '@/lib/license';
 import {
   appendLog,
   bumpActionCounter,
@@ -487,6 +488,8 @@ async function monitorKeywordComments(me: string) {
   // Ventana de tiempo: comentarios hechos desde que se creó la regla (o de las últimas 48 h).
   const floor = Date.now() - 48 * 3_600_000;
   let matched = 0;
+  let seen = 0;
+  let alreadyDone = 0;
   for (const [mediaId, shortcode] of posts) {
     const { comments } = await ig.getComments(mediaId, null);
     const engine = await getEngineState();
@@ -494,6 +497,7 @@ async function monitorKeywordComments(me: string) {
     const handled: string[] = [];
     for (const cm of comments) {
       if (!cm.userId || cm.userId === me || cm.createdAt < floor) continue;
+      seen++;
       const text = normalize(cm.text);
       for (const rule of rules) {
         const scope = splitList(rule.posts).map((p) => ig.shortcodeFromInput(p));
@@ -501,14 +505,17 @@ async function monitorKeywordComments(me: string) {
         if (rule.createdAt && cm.createdAt < rule.createdAt - 60_000) continue;
         if (!text.includes(normalize(rule.keyword.trim()))) continue;
         const key = `${rule.id}:${cm.userId}`;
-        if (engine.keywordHandled.includes(key) || handled.includes(key)) continue;
+        if (engine.keywordHandled.includes(key) || handled.includes(key)) {
+          alreadyDone++;
+          continue;
+        }
         handled.push(key);
         const { lead } = await upsertLeadFromProfile({ username: cm.username, userId: cm.userId }, 'keyword_comment', `palabra "${rule.keyword}"`);
         await mutateLead(lead.id, (l) => {
           if (!l.tags.includes(rule.keyword)) l.tags.push(rule.keyword);
           if (!l.stage || l.stage === 'frio') l.stage = 'tibio';
         });
-        const base = { leadId: lead.id, username: lead.username, userId: cm.userId, origin: 'keyword' as const };
+        const base = { leadId: lead.id, username: lead.username, userId: cm.userId, origin: 'keyword' as const, keywordKey: key };
         // El DM primero (es lo importante); la respuesta pública después.
         items.push({ ...base, id: uid('w'), action: 'dm', text: rule.dmText });
         if (rule.publicReply?.trim()) items.push({ ...base, id: uid('w'), action: 'comment', mediaId, text: `@${cm.username} ${rule.publicReply}` });
@@ -524,7 +531,12 @@ async function monitorKeywordComments(me: string) {
     }
     await sleep(randomBetween(1500, 3500));
   }
-  if (matched === 0) await log('info', `Palabra clave: revisadas ${posts.size} publicación(es), sin comentarios nuevos que coincidan.`, 'system');
+  await log(
+    'info',
+    `Palabra clave: ${posts.size} publicación(es), ${seen} comentario(s) de otras cuentas en 48 h, ${matched} nuevo(s) con la palabra` +
+      (alreadyDone ? `, ${alreadyDone} ya respondido(s) antes (usa «Reiniciar registro» para repetir pruebas)` : '') + '.',
+    'system',
+  );
 }
 
 async function syncInboxAndFollowUps(_me: string) {
@@ -608,6 +620,12 @@ async function runSystemWork(s: AutomationSettings): Promise<StepResult> {
       if (did) await bumpActionCounter(item.action);
       return did ? 'action' : 'read';
     } catch (err) {
+      // DM por palabra clave fallido: se libera para que se reintente en la próxima revisión.
+      if (item.keywordKey && item.action === 'dm') {
+        const key = item.keywordKey;
+        await mutateEngine((e) => (e.keywordHandled = e.keywordHandled.filter((k) => k !== key)));
+        await mutateEngine((e) => (e.systemWork = e.systemWork.filter((w) => w.keywordKey !== key)));
+      }
       if (err instanceof IgBlockError) throw err;
       await log('error', err instanceof Error ? err.message : String(err), item.action, item.username);
       return 'read';
@@ -723,6 +741,14 @@ export async function tick(): Promise<void> {
   try {
     const engine = await getEngineState();
     if (!engine.enabled) return;
+    // Sin licencia activa (venció o se quitó) el motor no hace nada y se apaga.
+    const lic = await licenseForEngine();
+    if (lic === 'unknown') return; // el servidor no respondió: se reintenta en el próximo turno
+    if (lic === 'none') {
+      await mutateEngine((e) => (e.enabled = false));
+      await log('warn', 'Sin licencia activa: el motor se apagó. Abre el panel para activar tu licencia.', 'system');
+      return;
+    }
     const now = Date.now();
     if (now < engine.pausedUntil) return;
     if (engine.pausedUntil && engine.pauseReason) await mutateEngine((e) => (e.pauseReason = undefined));

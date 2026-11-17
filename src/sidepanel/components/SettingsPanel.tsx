@@ -3,10 +3,11 @@ import { DEFAULT_SETTINGS, type Settings } from '@/lib/types';
 import { getSettings, saveSettings } from '@/lib/storage';
 import { fetchGroqModels } from '@/lib/groqScoring';
 import { PacingSettings, WebhookSettings } from './AutomationSettingsPanel';
-import { Badge, Button, Callout, Field, Fold, NumberInput, PageHead, useToast } from '../ui';
+import { Badge, Button, Callout, Field, Fold, Icon, NumberInput, PageHead, useToast } from '../ui';
 import { useNav } from '../hooks';
+import { clearLicense, renewalLink, type LicenseStatus } from '@/lib/license';
 
-export function SettingsPanel() {
+export function SettingsPanel({ license }: { license?: LicenseStatus }) {
   const nav = useNav();
   const toast = useToast();
   const [local, setLocal] = useState<Settings>(DEFAULT_SETTINGS);
@@ -49,6 +50,31 @@ export function SettingsPanel() {
   return (
     <>
       <PageHead title="Ajustes" subtitle="IA, ritmo del motor e integraciones" onBack={() => nav({ page: 'more' })} />
+
+      {license && (
+        <Fold icon="key" title="Licencia" sub={license.daysLeft != null ? `Vence el ${license.expiresAt} · quedan ${license.daysLeft} día(s)` : 'Activa'}>
+          <div className="row between">
+            <span className="muted">Estado</span>
+            <Badge tone={(license.daysLeft ?? 9) <= 3 ? 'warning' : 'success'}>{license.offline ? 'Activa (sin conexión)' : 'Activa'}</Badge>
+          </div>
+          {license.email && (
+            <div className="row between">
+              <span className="muted">Correo</span>
+              <span className="small">{license.email}</span>
+            </div>
+          )}
+          <div className="row between">
+            <span className="muted">Clave</span>
+            <code className="small">{license.key ? `${license.key.slice(0, 4)}••••${license.key.slice(-4)}` : '—'}</code>
+          </div>
+          <div className="row">
+            <a className="btn soft grow" href={renewalLink(license.email)} target="_blank" rel="noreferrer">
+              <Icon name="message" size={14} /> Renovar
+            </a>
+            <Button variant="danger-ghost" icon="x" onClick={() => clearLicense()}>Cambiar licencia</Button>
+          </div>
+        </Fold>
+      )}
 
       <Fold icon="sparkles" title="Inteligencia artificial" sub="Mensajes, comentarios y puntuación de leads" defaultOpen={!aiReady}>
         <div className="row">

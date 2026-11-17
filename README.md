@@ -86,3 +86,12 @@ src/
 - La nota de voz sustituye `getUserMedia` en la página para que Instagram "grabe" el audio pregrabado. Es experimental.
 - Todo se guarda en `chrome.storage.local` (con `unlimitedStorage` por los audios). La API key de Groq no sale del
   navegador salvo hacia `api.groq.com`.
+
+## Licencias (Panel Maestro de Alcanzia)
+
+- Al abrir el panel se pide licencia. Sin ella: **prueba gratis de 3 días** con correo + WhatsApp
+  (`POST https://api.alcanzia.co/api/licenses/register`, una prueba por correo, WhatsApp y equipo).
+- Activación con clave: `GET /api/verify` con el `deviceId` del equipo. La respuesta va firmada (ECDSA) y se
+  verifica con la clave pública de `src/lib/licenseToken.ts`; sin internet vale el token firmado (máx. 72 h).
+- Producto en el panel: **`instagram-money`** («InstaMoney»), el mismo que la app de escritorio.
+- Sin licencia activa el motor se apaga solo. Aviso de renovación cuando faltan 3 días o menos.

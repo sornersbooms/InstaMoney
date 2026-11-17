@@ -38,6 +38,11 @@ export function AutomationsPanel() {
     toast(res?.ok ? 'Revisión hecha · mira Actividad' : (res?.error ?? 'No se pudo revisar'), !res?.ok);
   }
 
+  async function resetKeywords() {
+    await bg({ type: 'DP_BG_RESET_KEYWORDS' });
+    toast('Registro reiniciado: se volverá a responder a quien comente la palabra');
+  }
+
   return (
     <>
       <PageHead
@@ -109,6 +114,9 @@ export function AutomationsPanel() {
         ))}
         <Button variant="soft" icon="plus" block onClick={() => update({ ...a, keywordRules: [...a.keywordRules, { id: uid('k'), keyword: '', enabled: true, dmText: '', publicReply: '', posts: '', createdAt: Date.now() }] })}>
           Añadir regla
+        </Button>
+        <Button variant="ghost" icon="refresh" onClick={resetKeywords}>
+          Reiniciar registro (volver a responder a todos)
         </Button>
         <Field label="Publicaciones recientes a vigilar">
           <NumberInput value={a.keywordPostsToWatch} min={1} max={24} onChange={(v) => update({ ...a, keywordPostsToWatch: v ?? 6 })} />

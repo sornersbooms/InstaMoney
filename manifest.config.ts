@@ -32,6 +32,7 @@ export default defineManifest({
     'https://www.instagram.com/*',
     'https://ig.me/*',
     'https://api.groq.com/*',
+    'https://api.alcanzia.co/*',
     'https://*.cdninstagram.com/*',
     'https://*.fbcdn.net/*',
   ],

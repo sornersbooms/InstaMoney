@@ -278,6 +278,8 @@ export interface WorkItem {
   caption?: string;
   replyToCommentId?: string;
   origin: 'campaign' | 'welcome' | 'keyword' | 'followup';
+  /** Palabra clave: `${ruleId}:${userId}`. Si el DM falla se libera para reintentarlo. */
+  keywordKey?: string;
 }
 
 export interface CampaignStats {
