@@ -194,7 +194,7 @@ async function extractPage(c: Campaign): Promise<{ candidates: Candidate[]; next
     case 'hashtag':
       return ig.getHashtagUsers(value, c.cursor);
     case 'location':
-      return ig.getLocationUsers(ig.locationIdFromInput(value), c.cursor);
+      return ig.getLocationUsers(value, c.cursor);
     case 'existing_leads': {
       const leads = await getLeads();
       const status = c.source.leadStatus ?? 'all';

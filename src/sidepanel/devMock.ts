@@ -92,6 +92,12 @@ Object.defineProperty(globalThis, "chrome", { configurable: true, writable: true
     sendMessage: async (msg: { type: string }) => {
       await new Promise((r) => setTimeout(r, 400));
       if (msg.type === 'DP_BG_INBOX') return { ok: true, threads: inbox };
+      if (msg.type === 'DP_BG_PLACES')
+        return { ok: true, places: [
+          { id: '113887786935854', name: 'Medellín, Colombia', subtitle: '' },
+          { id: '213470231', name: 'Parque Lleras', subtitle: 'El Poblado · Medellín' },
+          { id: '247315129', name: 'Aeropuerto José María Córdova', subtitle: 'Rionegro' },
+        ] };
       if (msg.type === 'DP_BG_SESSION') return { ok: true, loggedIn: true, userId: '1' };
       return { ok: true };
     },

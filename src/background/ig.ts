@@ -276,13 +276,47 @@ export function getHashtagUsers(tag: string, cursor?: string | null) {
   return getGridUsers(`${IG}/explore/tags/${encodeURIComponent(clean)}/`, cursor);
 }
 
-export function locationIdFromInput(input: string): string {
-  const m = /locations\/(\d+)/.exec(input);
-  return m ? m[1] : input.trim();
+export interface Place {
+  id: string;
+  name: string;
+  /** Dirección o ciudad, para distinguir lugares con el mismo nombre. */
+  subtitle: string;
 }
 
-export function getLocationUsers(locationId: string, cursor?: string | null) {
-  return getGridUsers(`${IG}/explore/locations/${locationId}/`, cursor);
+/** Busca lugares de Instagram por nombre ("medellin", "parque lleras"…). */
+export async function searchPlaces(query: string): Promise<Place[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const data = await call('GET', '/api/v1/fbsearch/places/', { query: q });
+  return (data.items ?? [])
+    .map((it: any) => it.location ?? it)
+    .filter((l: any) => l?.pk && l?.name)
+    .map((l: any) => ({
+      id: String(l.pk),
+      name: String(l.name),
+      subtitle: [l.address, l.city].filter(Boolean).join(' · '),
+    }));
+}
+
+/**
+ * Convierte lo que escribió el usuario en el ID numérico de la ubicación:
+ * - enlace (…/explore/locations/123456/…) o número → se usa tal cual;
+ * - nombre ("medellin") → se busca en Instagram y se usa la primera coincidencia.
+ * Antes el nombre se pegaba directamente en la URL (/explore/locations/medellin/) y daba 404.
+ */
+export async function resolveLocationId(input: string): Promise<{ id: string; name?: string }> {
+  const fromUrl = /locations\/(\d+)/.exec(input)?.[1];
+  if (fromUrl) return { id: fromUrl };
+  const trimmed = input.trim();
+  if (/^\d+$/.test(trimmed)) return { id: trimmed };
+  const places = await searchPlaces(trimmed);
+  if (!places.length) throw new Error(`No encontramos en Instagram la ubicación «${trimmed}». Prueba con otro nombre o pega el enlace del lugar.`);
+  return { id: places[0].id, name: places[0].name };
+}
+
+export async function getLocationUsers(input: string, cursor?: string | null) {
+  const { id } = await resolveLocationId(input);
+  return getGridUsers(`${IG}/explore/locations/${id}/`, cursor);
 }
 
 /** Últimas publicaciones propias (para las reglas de palabra clave). */

@@ -2,7 +2,7 @@ import { getCampaigns, saveCampaigns, upsertLeads } from '@/lib/storage';
 import type { Campaign, CapturedProfile, Lead } from '@/lib/types';
 import { toAvatarDataUrl } from './avatar';
 import { mutateEngine, runMonitors, tick, withLock } from './engine';
-import { getInbox, getSession } from './ig';
+import { getInbox, getSession, searchPlaces } from './ig';
 import { getWorkerTab } from './worker';
 
 const TICK_ALARM = 'dp-tick';
@@ -70,6 +70,7 @@ type BgMessage =
   | { type: 'DP_BG_CAMPAIGN_DELETE'; id: string }
   | { type: 'DP_BG_CLEAR_SYSTEM_WORK' }
   | { type: 'DP_BG_RESET_KEYWORDS' }
+  | { type: 'DP_BG_PLACES'; query: string }
   | { type: 'DP_BG_INBOX' }
   | { type: 'DP_BG_SESSION' }
   | { type: 'DP_BG_SHOW_WORKER' };
@@ -139,6 +140,12 @@ async function handle(message: BgMessage): Promise<unknown> {
     case 'DP_BG_CLEAR_SYSTEM_WORK':
       await mutateEngine((e) => (e.systemWork = []));
       return { ok: true };
+    case 'DP_BG_PLACES':
+      try {
+        return { ok: true, places: await searchPlaces(message.query) };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
     case 'DP_BG_RESET_KEYWORDS':
       // Olvida a quién ya se respondió por palabra clave (para repetir pruebas).
       await mutateEngine((e) => {

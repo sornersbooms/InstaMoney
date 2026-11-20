@@ -365,7 +365,14 @@ function Wizard({ initial, isNew, onClose }: { initial: Campaign; isNew: boolean
             <>
               <Segmented
                 value={kind}
-                onChange={(v) => setSource({ kind: v, value: '' })}
+                onChange={(v) =>
+                  setC((prev) => ({
+                    ...prev,
+                    source: { ...prev.source, kind: v, value: '' },
+                    // Si el nombre es el automático, que siga a la fuente elegida.
+                    name: /^Prospectos por (hashtag|ubicación)$/.test(prev.name) ? `Prospectos por ${v === 'hashtag' ? 'hashtag' : 'ubicación'}` : prev.name,
+                  }))
+                }
                 options={[
                   { value: 'hashtag', label: 'Hashtag', icon: 'hash' },
                   { value: 'location', label: 'Ubicación', icon: 'pin' },
@@ -376,9 +383,7 @@ function Wizard({ initial, isNew, onClose }: { initial: Campaign; isNew: boolean
                   <input className="input" value={c.source.value} onChange={(e) => setSource({ value: e.target.value })} placeholder="#emprendimiento" />
                 </Field>
               ) : (
-                <Field label="Enlace de la ubicación" hint="Busca el lugar en Instagram y copia su enlace (…/explore/locations/123…).">
-                  <input className="input" value={c.source.value} onChange={(e) => setSource({ value: e.target.value })} placeholder="https://www.instagram.com/explore/locations/…" />
-                </Field>
+                <PlacePicker value={c.source.value} onChange={(value) => setSource({ value })} />
               )}
             </>
           )}
@@ -711,5 +716,85 @@ function Review({ c, templates, voices, onEdit }: { c: Campaign; templates: Temp
         El motor respeta tus límites diarios, horario y pausas (Ajustes → Ritmo). Debe estar <b>encendido</b> para que la campaña avance.
       </Callout>
     </>
+  );
+}
+
+interface Place {
+  id: string;
+  name: string;
+  subtitle: string;
+}
+
+/** Busca el lugar por nombre en Instagram y guarda su enlace con el ID (lo que necesita el motor). */
+function PlacePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [query, setQuery] = useState(() => value.replace(/\s*·\s*https?:\/\/\S+$/, ''));
+  const [places, setPlaces] = useState<Place[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const selectedId = /locations\/(\d+)/.exec(value)?.[1];
+
+  async function search() {
+    if (!query.trim()) return;
+    setBusy(true);
+    setError('');
+    const res = await bg<{ ok: boolean; places?: Place[]; error?: string }>({ type: 'DP_BG_PLACES', query });
+    setBusy(false);
+    if (!res?.ok) return setError(res?.error ?? 'No se pudo buscar. ¿Está abierta la ventana de trabajo con tu sesión?');
+    setPlaces(res.places ?? []);
+  }
+
+  return (
+    <Field
+      label="Ubicación"
+      hint={selectedId ? undefined : 'Escribe la ciudad, barrio o lugar y pulsa Buscar. También puedes pegar el enlace del lugar.'}
+    >
+      <div className="row">
+        <input
+          className="input"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), search())}
+          placeholder="Ej. Medellín, Parque Lleras…"
+        />
+        <Button variant="soft" icon="search" onClick={search} disabled={busy || !query.trim()}>
+          {busy ? 'Buscando…' : 'Buscar'}
+        </Button>
+      </div>
+      {error && <Callout tone="danger">{error}</Callout>}
+      {places && places.length === 0 && <span className="muted small">No hay lugares con ese nombre.</span>}
+      {places && places.length > 0 && (
+        <div className="list" style={{ maxHeight: 240, overflowY: 'auto' }}>
+          {places.slice(0, 12).map((pl) => (
+            <button
+              key={pl.id}
+              type="button"
+              className="list-item"
+              onClick={() => {
+                onChange(`${pl.name} · https://www.instagram.com/explore/locations/${pl.id}/`);
+                setQuery(pl.name);
+                setPlaces(null);
+              }}
+            >
+              <div className="li-icon" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}>
+                <Icon name="pin" size={15} />
+              </div>
+              <div className="li-main">
+                <b className="ellipsis">{pl.name}</b>
+                {pl.subtitle && <span className="ellipsis">{pl.subtitle}</span>}
+              </div>
+              {selectedId === pl.id && <Icon name="check" size={16} />}
+            </button>
+          ))}
+        </div>
+      )}
+      {selectedId && !places && (
+        <Callout tone="primary" icon="pin">
+          Lugar elegido: <b>{query}</b> (ID {selectedId})
+        </Callout>
+      )}
+    </Field>
   );
 }
